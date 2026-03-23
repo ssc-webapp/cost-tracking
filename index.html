@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dashboard de Gastos - SSC Gourmet</title>
+    <title>Dashboard Financiero y Logístico - SSC Gourmet</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,7 +14,6 @@
 <body class="bg-[#F8FAFC]">
     <div id="root"></div>
 
-    <!-- Script de React usando importaciones dinámicas (ES Modules) -->
     <script type="text/babel" data-type="module">
         import React, { useState, useMemo, useEffect } from 'https://esm.sh/react@18.2.0';
         import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
@@ -23,22 +22,25 @@
           LayoutDashboard, List, Search, Car, Utensils, Building, 
           ShieldCheck, Banknote, ShoppingCart, Plane, Package, Leaf, 
           ChevronRight, Briefcase, RefreshCcw, Landmark, Loader2, 
-          Users, Scale, Calculator, Truck, Megaphone, Zap, Monitor, AlertCircle
+          Users, Scale, Calculator, Truck, Megaphone, Zap, Monitor, 
+          AlertCircle, MapPin, ExternalLink, Percent, TrendingUp, Box
         } from 'https://esm.sh/lucide-react@0.344.0';
 
         // =====================================================================
-        // 🔗 CONEXIÓN A GOOGLE SHEETS
+        // 🔗 CONEXIONES A GOOGLE SHEETS
         // =====================================================================
+        // 1. Finanzas (BBVA)
         const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbxYG7DoId6o6dwkvpZI3i5XOSnOeuAPcCpkx85ExQnCT-MIuvcCbRqg_dn4NVl92lO4/exec";
+        
+        // 2. Logística (Castores) - AÑADIDO
+        const GOOGLE_SHEET_CASTORES_URL = "https://script.google.com/macros/s/AKfycbyv4ppR8az6oHuM_f_bQEotdgHAYB19688JHgzK4jekOJZ3VzED-TFbYw4pnwKuyOW3FA/exec"; 
 
-        // Datos locales estáticos para las otras cuentas (mientras se migran)
         const STATIC_DATA = [
           { id: 'amex-1', fecha: '2026-02-03', beneficiario: 'IAAM ELSA OPERADORA', monto: 3530.00, tagOperativo: 'Viaticos - Comida', cuentaContable: '52-01-0011-0000', banco: 'TC AMEX', tipo: 'DEDUCIBLE' },
           { id: 'nea-1', fecha: '2026-02-02', beneficiario: 'AEROVIAS DE MEXICO', monto: 1399.00, tagOperativo: 'Viáticos', cuentaContable: '52-01-0047-0000', banco: 'TC NEA', tipo: 'DEDUCIBLE' },
         ];
 
         const CATEGORY_CONFIG = {
-          // Tags Operativos Oficiales
           'Nómina': { icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-100' },
           'Legal mensual': { icon: Scale, color: 'text-slate-700', bg: 'bg-slate-200' },
           'Honorarios externos': { icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-100' },
@@ -59,374 +61,479 @@
 
         const App = () => {
           const [appData, setAppData] = useState(STATIC_DATA);
-          const [isLoading, setIsLoading] = useState(false);
-          const [syncError, setSyncError] = useState(null);
+          const [logisticsData, setLogisticsData] = useState([]);
           
-          const [viewMode, setViewMode] = useState('dashboard');
+          const [isLoading, setIsLoading] = useState(false);
+          const [isLoadingLogistics, setIsLoadingLogistics] = useState(false);
+          
+          const [syncError, setSyncError] = useState(null);
+          const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard', 'list', 'logistics'
           const [activeBankTab, setActiveBankTab] = useState('BBVA'); 
           const [searchTerm, setSearchTerm] = useState('');
 
           const parseSafeFloat = (strValue) => {
             if (!strValue) return 0;
-            const cleanedString = String(strValue).replace(/[$,\s]/g, '');
+            const cleanedString = String(strValue).replace(/[$,\s%]/g, '');
             const parsed = parseFloat(cleanedString);
             return isNaN(parsed) ? 0 : parsed;
           };
 
+          const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val);
+          const formatPercent = (val) => new Intl.NumberFormat('es-MX', { style: 'percent', maximumFractionDigits: 1 }).format(val);
+
+          // FETCH FINANZAS
           useEffect(() => {
             if (!GOOGLE_SHEET_URL) return;
-
             const fetchSheetData = async () => {
               setIsLoading(true);
               setSyncError(null);
               try {
                 const response = await fetch(GOOGLE_SHEET_URL);
-                if (!response.ok) throw new Error('Error en la respuesta del servidor');
-                
+                if (!response.ok) throw new Error('Error de servidor');
                 const data = await response.json();
-
-                const bbvaData = data
-                  .map((row, idx) => {
-                    const egresoHaber = parseSafeFloat(row['EGRESO (HABER)']);
-                    if (egresoHaber <= 0) return null;
-
-                    let fechaLimpia = row['FECHA'] || '';
-                    if (fechaLimpia.includes('T')) fechaLimpia = fechaLimpia.split('T')[0];
-
-                    return {
-                      id: `bbva-gs-${idx}`,
-                      fecha: fechaLimpia,
-                      beneficiario: row['BENEFICIARIO / CLIENTE'] || row['CONCEPTO BANCO'] || 'Desconocido',
-                      monto: egresoHaber,
-                      tagOperativo: row['TAG OPERATIVO'] || 'Sin clasificar',
-                      cuentaContable: row['CUENTA CONTPAQi'] || row['CÓDIGO CONTPAQi'] || 'Sin Cuenta',
-                      banco: 'BBVA',
-                      tipo: row['TIPO'] || 'DEDUCIBLE'
-                    };
-                  })
-                  .filter(Boolean); 
-
+                const bbvaData = data.map((row, idx) => {
+                  const egresoHaber = parseSafeFloat(row['EGRESO (HABER)']);
+                  if (egresoHaber <= 0) return null;
+                  let fechaLimpia = row['FECHA'] || '';
+                  if (fechaLimpia.includes('T')) fechaLimpia = fechaLimpia.split('T')[0];
+                  return {
+                    id: `bbva-${idx}`, fecha: fechaLimpia,
+                    beneficiario: row['BENEFICIARIO / CLIENTE'] || row['CONCEPTO BANCO'] || 'Desconocido',
+                    monto: egresoHaber, tagOperativo: row['TAG OPERATIVO'] || 'Sin clasificar',
+                    cuentaContable: row['CUENTA CONTPAQi'] || row['CÓDIGO CONTPAQi'] || 'Sin Cuenta',
+                    banco: 'BBVA', tipo: row['TIPO'] || 'DEDUCIBLE'
+                  };
+                }).filter(Boolean); 
                 setAppData([...STATIC_DATA, ...bbvaData]);
-
               } catch (error) {
-                console.error("Error al cargar datos desde Google Sheets:", error);
-                setSyncError("Error de sincronización. Mostrando datos offline.");
+                setSyncError("Error de sincronización con BBVA.");
               } finally {
                 setIsLoading(false);
               }
             };
-
             fetchSheetData();
           }, []);
 
-          const bankTabs = useMemo(() => ['General', ...new Set(appData.map(d => d.banco))], [appData]);
+          // FETCH LOGÍSTICA
+          useEffect(() => {
+            if (!GOOGLE_SHEET_CASTORES_URL) return;
+            const fetchLogistics = async () => {
+              setIsLoadingLogistics(true);
+              try {
+                const response = await fetch(GOOGLE_SHEET_CASTORES_URL);
+                if (!response.ok) throw new Error('Error de servidor');
+                const data = await response.json();
+                const castoresParsed = data.map((row, idx) => {
+                  let fechaLimpia = row['Fecha Emisión'] || '';
+                  if (fechaLimpia.includes(' ')) fechaLimpia = fechaLimpia.split(' ')[0]; // Quitar hora
+                  
+                  return {
+                    id: `castores-${idx}`,
+                    folio: row['Folio'],
+                    fecha: fechaLimpia,
+                    destino: row['destino'] || 'Desconocido',
+                    bultos: parseSafeFloat(row['bultos']),
+                    facturado: parseSafeFloat(row['facturado']),
+                    costoEnvio: parseSafeFloat(row['Total']),
+                    porcentaje: parseSafeFloat(row['porcentaje']),
+                    enlace: row['RASTREO']
+                  };
+                }).filter(item => item.folio && item.costoEnvio > 0);
+                setLogisticsData(castoresParsed);
+              } catch (error) {
+                console.error("Error cargando Castores", error);
+              } finally {
+                setIsLoadingLogistics(false);
+              }
+            };
+            fetchLogistics();
+          }, []);
 
+          // Filtros Finanzas
+          const bankTabs = useMemo(() => ['General', ...new Set(appData.map(d => d.banco))], [appData]);
           const filteredData = useMemo(() => {
             return appData.filter(item => {
               const matchAccount = activeBankTab === 'General' || item.banco === activeBankTab;
               const term = searchTerm.toLowerCase();
-              const matchSearch = 
-                item.beneficiario.toLowerCase().includes(term) || 
-                item.tagOperativo.toLowerCase().includes(term) ||
-                item.cuentaContable.toLowerCase().includes(term);
+              const matchSearch = item.beneficiario.toLowerCase().includes(term) || item.tagOperativo.toLowerCase().includes(term);
               return matchAccount && matchSearch;
             });
           }, [appData, activeBankTab, searchTerm]);
 
+          // Filtros Logística
+          const filteredLogistics = useMemo(() => {
+            const term = searchTerm.toLowerCase();
+            return logisticsData.filter(item => item.destino.toLowerCase().includes(term) || String(item.folio).includes(term));
+          }, [logisticsData, searchTerm]);
+
+          // KPIs Finanzas
           const stats = useMemo(() => {
             const total = filteredData.reduce((acc, curr) => acc + curr.monto, 0);
-            const count = filteredData.length;
-            
             const byCategory = filteredData.reduce((acc, curr) => {
-              acc[curr.tagOperativo] = (acc[curr.tagOperativo] || 0) + curr.monto;
-              return acc;
+              acc[curr.tagOperativo] = (acc[curr.tagOperativo] || 0) + curr.monto; return acc;
             }, {});
-            
             const byCategoryForTop = { ...byCategory };
             delete byCategoryForTop['Transferencia interna'];
             const sortedForTop = Object.entries(byCategoryForTop).sort((a, b) => b[1] - a[1]);
-            
             const sorted = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
-            
-            return { total, count, topCategory: sortedForTop[0], categorySpending: sorted };
+            return { total, count: filteredData.length, topCategory: sortedForTop[0], categorySpending: sorted };
           }, [filteredData]);
 
-          const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val);
+          // KPIs Logística
+          const logStats = useMemo(() => {
+            const totalCosto = filteredLogistics.reduce((acc, curr) => acc + curr.costoEnvio, 0);
+            const totalVenta = filteredLogistics.reduce((acc, curr) => acc + curr.facturado, 0);
+            const totalBultos = filteredLogistics.reduce((acc, curr) => acc + curr.bultos, 0);
+            // Promedio ponderado (Costo Total / Venta Total) en lugar de sumar porcentajes
+            const promPorcentaje = totalVenta > 0 ? (totalCosto / totalVenta) : 0;
+            return { totalCosto, totalVenta, totalBultos, promPorcentaje, count: filteredLogistics.length };
+          }, [filteredLogistics]);
 
           return (
             <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col md:flex-row">
-              {/* Barra de Navegación Optimizada para Móvil */}
-              <nav className="fixed bottom-0 left-0 right-0 md:top-0 md:h-full md:w-24 bg-white/95 backdrop-blur-md border-t md:border-t-0 md:border-r border-slate-200 z-50 flex md:flex-col justify-around md:justify-start items-center p-3 md:p-4 md:pt-10 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] md:shadow-sm">
-                <div className="hidden md:flex w-12 h-12 bg-slate-900 rounded-2xl items-center justify-center text-white mb-6 shadow-lg relative">
+              {/* Barra de Navegación Lateral */}
+              <nav className="fixed bottom-0 left-0 right-0 md:top-0 md:h-full md:w-24 bg-white/95 backdrop-blur-md border-t md:border-t-0 md:border-r border-slate-200 z-50 flex md:flex-col justify-around md:justify-start items-center p-3 md:p-4 md:pt-10 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] md:shadow-sm gap-2 md:gap-4">
+                <div className="hidden md:flex w-12 h-12 bg-slate-900 rounded-2xl items-center justify-center text-white mb-4 shadow-lg relative">
                   <Banknote size={24} />
-                  {isLoading && (
+                  {(isLoading || isLoadingLogistics) && (
                     <span className="absolute -top-1 -right-1 flex h-3 w-3">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                     </span>
                   )}
                 </div>
-                <button onClick={() => setViewMode('dashboard')} className={`p-3 md:p-4 rounded-xl md:rounded-2xl transition-all ${viewMode === 'dashboard' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
+                
+                <button title="Dashboard Financiero" onClick={() => setViewMode('dashboard')} className={`p-3 md:p-4 rounded-xl md:rounded-2xl transition-all ${viewMode === 'dashboard' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
                   <LayoutDashboard size={24} />
                 </button>
-                <button onClick={() => setViewMode('list')} className={`p-3 md:p-4 rounded-xl md:rounded-2xl transition-all ${viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
+                <button title="Tabla de Egresos" onClick={() => setViewMode('list')} className={`p-3 md:p-4 rounded-xl md:rounded-2xl transition-all ${viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
                   <List size={24} />
+                </button>
+                <div className="w-px h-8 md:w-8 md:h-px bg-slate-200 my-0 md:my-2"></div>
+                <button title="Monitor de Envíos" onClick={() => setViewMode('logistics')} className={`p-3 md:p-4 rounded-xl md:rounded-2xl transition-all relative ${viewMode === 'logistics' ? 'bg-amber-50 text-amber-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <Truck size={24} />
+                  {/* Pequeño punto indicador de datos vivos en logística */}
+                  {GOOGLE_SHEET_CASTORES_URL && !isLoadingLogistics && logisticsData.length > 0 && (
+                     <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                  )}
                 </button>
               </nav>
 
-              {/* Contenedor Principal con Padding adaptado a móviles */}
               <div className="md:ml-24 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full pb-24 md:pb-8 flex-1">
-                <header className="mb-6 md:mb-8">
-                  {syncError && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm flex items-center gap-2 font-medium">
-                      <AlertCircle size={16} />
-                      {syncError}
-                    </div>
-                  )}
-
-                  <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 md:gap-6 mb-4 md:mb-6">
-                    <div>
-                      <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2 md:gap-3">
-                        Costs Panel
-                        {isLoading && <Loader2 className="animate-spin text-indigo-500" size={18} />}
-                      </h1>
-                      <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
-                        {isLoading ? 'Calculando saldos reales...' : `Sincronizado • ${filteredData.length} transacciones`}
-                      </p>
-                    </div>
-
-                    <div className="relative group w-full lg:w-auto md:min-w-[300px]">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
-                      <input 
-                        type="text" 
-                        placeholder="Buscar movimiento, cuenta..." 
-                        className="w-full pl-11 pr-4 py-3 md:py-3 bg-white border border-slate-200 rounded-xl md:rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm text-sm md:text-base font-medium"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide border-b border-slate-200 -mx-4 px-4 md:mx-0 md:px-0">
-                    {bankTabs.map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setActiveBankTab(tab)}
-                        className={`px-5 py-2 md:py-2.5 rounded-full text-xs md:text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
-                          activeBankTab === tab 
-                          ? 'bg-slate-900 text-white shadow-md' 
-                          : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-800'
-                        }`}
-                      >
-                        {tab === 'BBVA' && !syncError && (
-                          <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
-                        )}
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
-                </header>
-
-                {viewMode === 'dashboard' ? (
-                  <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                      <div className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-red-50 rounded-full -mr-12 -mt-12 md:-mr-16 md:-mt-16 transition-transform group-hover:scale-110 duration-500"></div>
-                        <div className="relative">
-                          <div className="w-10 h-10 md:w-12 md:h-12 bg-red-100 text-red-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6">
-                            <TrendingDown size={20} className="md:w-6 md:h-6" />
-                          </div>
-                          <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">
-                            Egreso Total
+                {/* -----------------------------
+                    VISTA DE LOGÍSTICA (ENVIOS)
+                ------------------------------ */}
+                {viewMode === 'logistics' ? (
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <header className="mb-6 md:mb-8">
+                      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 md:gap-6 mb-4">
+                        <div>
+                          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2 md:gap-3">
+                            Monitor de Envíos
+                            {isLoadingLogistics && <Loader2 className="animate-spin text-amber-500" size={18} />}
+                          </h1>
+                          <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
+                            {GOOGLE_SHEET_CASTORES_URL ? `Sincronizado • Castores • ${logStats.count} guías procesadas` : '⚠️ Esperando URL de Google Sheets...'}
                           </p>
-                          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black mt-1 text-slate-900 truncate" title={formatCurrency(stats.total)}>{formatCurrency(stats.total)}</h2>
+                        </div>
+                        <div className="relative group w-full lg:w-auto md:min-w-[300px]">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" size={18} />
+                          <input 
+                            type="text" 
+                            placeholder="Buscar destino o folio..." 
+                            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl md:rounded-2xl focus:outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all shadow-sm text-sm md:text-base font-medium"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                          />
                         </div>
                       </div>
+                    </header>
 
-                      <div className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-indigo-50 rounded-full -mr-12 -mt-12 md:-mr-16 md:-mt-16 transition-transform group-hover:scale-110 duration-500"></div>
-                        <div className="relative">
-                          <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-100 text-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6">
-                            <CreditCard size={20} className="md:w-6 md:h-6" />
-                          </div>
-                          <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">Movimientos</p>
-                          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black mt-1 text-slate-900">{stats.count}</h2>
+                    {/* KPIs de Logística */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+                      <div className="bg-white p-5 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                        <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-3">
+                          <TrendingDown size={20} />
                         </div>
+                        <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">Costo Envíos</p>
+                        <h2 className="text-xl sm:text-2xl font-black mt-1 text-slate-900">{formatCurrency(logStats.totalCosto)}</h2>
                       </div>
-
-                      <div className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group sm:col-span-2 lg:col-span-1">
-                        <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-amber-50 rounded-full -mr-12 -mt-12 md:-mr-16 md:-mt-16 transition-transform group-hover:scale-110 duration-500"></div>
-                        <div className="relative">
-                          <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-100 text-amber-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6">
-                            <PieChartIcon size={20} className="md:w-6 md:h-6" />
-                          </div>
-                          <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">Tag Principal</p>
-                          <h2 className="text-lg md:text-xl font-black mt-1 text-slate-900 truncate" title={stats.topCategory ? stats.topCategory[0] : ''}>
-                            {stats.topCategory ? stats.topCategory[0] : 'N/A'}
-                          </h2>
+                      <div className="bg-white p-5 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                        <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center mb-3">
+                          <TrendingUp size={20} />
                         </div>
+                        <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">Valor Facturado</p>
+                        <h2 className="text-xl sm:text-2xl font-black mt-1 text-slate-900">{formatCurrency(logStats.totalVenta)}</h2>
+                      </div>
+                      <div className="bg-white p-5 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${logStats.promPorcentaje > 0.12 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                          <Percent size={20} />
+                        </div>
+                        <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">% Costo Promedio</p>
+                        <h2 className={`text-xl sm:text-2xl font-black mt-1 ${logStats.promPorcentaje > 0.12 ? 'text-red-600' : 'text-slate-900'}`}>
+                          {formatPercent(logStats.promPorcentaje)}
+                        </h2>
+                      </div>
+                      <div className="bg-white p-5 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                        <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mb-3">
+                          <Box size={20} />
+                        </div>
+                        <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">Total Bultos</p>
+                        <h2 className="text-xl sm:text-2xl font-black mt-1 text-slate-900">{logStats.totalBultos}</h2>
                       </div>
                     </div>
 
-                    <div className={`grid grid-cols-1 ${activeBankTab === 'General' ? 'lg:grid-cols-2' : ''} gap-4 md:gap-8`}>
-                      <div className="bg-white p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 md:mb-8">
-                          <h3 className="text-lg md:text-xl font-black">Gastos por Tag</h3>
-                          <span className="w-fit px-3 py-1 bg-slate-100 rounded-full text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ordenado por monto</span>
-                        </div>
-                        <div className="space-y-5 md:space-y-6 max-h-[400px] md:max-h-[500px] overflow-y-auto pr-2 scrollbar-hide">
-                          {stats.categorySpending.map(([name, value], idx) => {
-                            const percentage = (value / stats.total) * 100;
-                            const config = CATEGORY_CONFIG[name] || CATEGORY_CONFIG.default;
-                            const Icon = config.icon;
-                            return (
-                              <div key={idx} className="group">
-                                <div className="flex justify-between items-center mb-2 gap-2">
-                                  <div className="flex items-center gap-3 w-2/3">
-                                    <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-lg md:rounded-xl ${config.bg} ${config.color} flex items-center justify-center transition-transform group-hover:scale-110`}>
-                                      <Icon size={16} className="md:w-[18px] md:h-[18px]" />
-                                    </div>
-                                    <div className="truncate">
-                                      <p className="text-xs md:text-sm font-bold text-slate-800 truncate" title={name}>{name}</p>
-                                      <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase">{Math.round(percentage)}% del total</p>
-                                    </div>
-                                  </div>
-                                  <span className="text-xs md:text-sm font-black text-slate-900 truncate w-1/3 text-right" title={formatCurrency(value)}>{formatCurrency(value)}</span>
-                                </div>
-                                <div className="w-full bg-slate-100 h-1.5 md:h-2 rounded-full overflow-hidden">
-                                  <div 
-                                    className={`h-full rounded-full transition-all duration-1000 ease-out ${name === 'Transferencia interna' ? 'bg-slate-300' : 'bg-indigo-500'}`}
-                                    style={{ width: `${percentage}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                          {stats.categorySpending.length === 0 && (
-                            <p className="text-center text-slate-400 py-4 text-sm font-medium">No hay gastos para mostrar.</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {activeBankTab === 'General' && (
-                        <div className="bg-white p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm flex flex-col">
-                          <h3 className="text-lg md:text-xl font-black mb-4 md:mb-8">Uso por Auxiliar (Banco)</h3>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 flex-1">
-                            {bankTabs.filter(a => a !== 'General').map(acc => {
-                              const accTotal = appData.filter(d => d.banco === acc).reduce((a, b) => a + b.monto, 0);
-                              const accCount = appData.filter(d => d.banco === acc).length;
-                              
-                              if (accCount === 0) return null;
-
+                    {/* Tabla de Logística */}
+                    <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden -mx-4 md:mx-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse min-w-[700px] md:min-w-full">
+                          <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                              <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Folio / Fecha</th>
+                              <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Destino</th>
+                              <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Bultos</th>
+                              <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Facturado</th>
+                              <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Costo Envío</th>
+                              <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Impacto</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {filteredLogistics.map((item) => {
+                              const isHighCost = item.porcentaje >= 0.12;
+                              const isMediumCost = item.porcentaje >= 0.08 && item.porcentaje < 0.12;
                               return (
-                                <div 
-                                  key={acc} 
-                                  onClick={() => setActiveBankTab(acc)}
-                                  className="p-4 md:p-5 rounded-2xl md:rounded-3xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group flex flex-col justify-between"
-                                >
-                                  <div>
-                                    <div className="flex justify-between items-start mb-2">
-                                      <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                                        {acc}
-                                        {acc === 'BBVA' && !syncError && <span title="Sincronizado" className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block ml-1"></span>}
-                                      </p>
-                                      <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                                <tr key={item.id} className="group hover:bg-slate-50/80 transition-all cursor-default">
+                                  <td className="px-4 md:px-6 py-3 md:py-5">
+                                    <div className="flex items-center gap-2">
+                                      {item.enlace ? (
+                                        <a href={item.enlace} target="_blank" rel="noreferrer" className="p-1.5 bg-slate-100 text-slate-500 rounded-md hover:bg-amber-100 hover:text-amber-600 transition-colors">
+                                          <ExternalLink size={14} />
+                                        </a>
+                                      ) : <div className="w-7"></div>}
+                                      <div>
+                                        <p className="text-xs md:text-sm font-black text-slate-900">{item.folio}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold">{item.fecha}</p>
+                                      </div>
                                     </div>
-                                    <h4 className="text-base md:text-lg font-black text-slate-900 mb-2 truncate" title={formatCurrency(accTotal)}>{formatCurrency(accTotal)}</h4>
-                                  </div>
-                                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200/60">
-                                    <List size={12} className="text-slate-400" />
-                                    <p className="text-[10px] md:text-xs font-bold text-slate-500">{accCount} movimientos</p>
-                                  </div>
-                                </div>
+                                  </td>
+                                  <td className="px-4 md:px-6 py-3 md:py-5">
+                                    <div className="flex items-center gap-2">
+                                      <MapPin size={14} className="text-slate-400" />
+                                      <p className="text-xs md:text-sm font-bold text-slate-700 truncate max-w-[200px]" title={item.destino}>{item.destino}</p>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 md:px-6 py-3 md:py-5 text-center">
+                                    <span className="text-xs font-black text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">{item.bultos}</span>
+                                  </td>
+                                  <td className="px-4 md:px-6 py-3 md:py-5 text-right">
+                                    <p className="text-xs md:text-sm font-bold text-emerald-600">{formatCurrency(item.facturado)}</p>
+                                  </td>
+                                  <td className="px-4 md:px-6 py-3 md:py-5 text-right">
+                                    <p className="text-xs md:text-sm font-black text-slate-900">-{formatCurrency(item.costoEnvio)}</p>
+                                  </td>
+                                  <td className="px-4 md:px-6 py-3 md:py-5 text-center">
+                                    <span className={`text-[10px] md:text-xs font-black px-2 py-1 rounded-md border inline-block min-w-[50px] ${
+                                      isHighCost ? 'bg-red-50 text-red-600 border-red-200' : 
+                                      isMediumCost ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 
+                                      'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                    }`}>
+                                      {formatPercent(item.porcentaje)}
+                                    </span>
+                                  </td>
+                                </tr>
                               );
                             })}
-                          </div>
-                          
-                          <div className="mt-6 md:mt-8 p-5 md:p-6 bg-slate-900 rounded-2xl md:rounded-[1.5rem] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4 shadow-xl shadow-slate-900/10">
-                            <div>
-                              <p className="text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-widest">Consolidado Total</p>
-                              <p className="text-xl md:text-2xl font-black mt-1 text-indigo-400">General</p>
-                            </div>
-                            <div className="sm:text-right">
-                              <p className="text-2xl md:text-3xl font-black truncate">{formatCurrency(stats.total)}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                            {filteredLogistics.length === 0 && (
+                              <tr>
+                                <td colSpan={6} className="px-4 py-16 text-center">
+                                  <p className="text-sm text-slate-500 font-bold">No se encontraron envíos.</p>
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500 -mx-4 md:mx-0">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse min-w-[600px] md:min-w-full">
-                        <thead>
-                          <tr className="bg-slate-50/50 border-b border-slate-100">
-                            <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
-                            <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Concepto / Beneficiario</th>
-                            {activeBankTab === 'General' && <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Banco</th>}
-                            <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoría (Tag y Cta. Contable)</th>
-                            <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Monto</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {filteredData.map((item) => {
-                            const config = CATEGORY_CONFIG[item.tagOperativo] || CATEGORY_CONFIG.default;
-                            const Icon = config.icon;
-                            return (
-                              <tr key={item.id} className="group hover:bg-slate-50/80 transition-all cursor-default">
-                                <td className="px-4 md:px-6 py-3 md:py-5">
-                                  <p className="text-xs md:text-sm font-bold text-slate-500 whitespace-nowrap">{item.fecha}</p>
-                                </td>
-                                <td className="px-4 md:px-6 py-3 md:py-5 min-w-[180px] sm:min-w-[250px] max-w-[200px] sm:max-w-[350px]">
-                                  <div className="flex items-center gap-3 md:gap-4">
-                                    <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-lg md:rounded-xl ${config.bg} ${config.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                                      <Icon size={16} className="md:w-[18px] md:h-[18px]" />
+                  /* -----------------------------
+                     VISTAS FINANCIERAS (DASHBOARD/LISTA)
+                  ------------------------------ */
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <header className="mb-6 md:mb-8">
+                      {syncError && (
+                        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm flex items-center gap-2 font-medium">
+                          <AlertCircle size={16} />{syncError}
+                        </div>
+                      )}
+                      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 md:gap-6 mb-4 md:mb-6">
+                        <div>
+                          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2 md:gap-3">
+                            Estado de Resultados
+                            {isLoading && <Loader2 className="animate-spin text-indigo-500" size={18} />}
+                          </h1>
+                          <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
+                            {isLoading ? 'Calculando saldos reales...' : `Sincronizado • ${filteredData.length} transacciones`}
+                          </p>
+                        </div>
+                        <div className="relative group w-full lg:w-auto md:min-w-[300px]">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                          <input 
+                            type="text" 
+                            placeholder="Buscar movimiento, cuenta..." 
+                            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl md:rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm text-sm md:text-base font-medium"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide border-b border-slate-200 -mx-4 px-4 md:mx-0 md:px-0">
+                        {bankTabs.map((tab) => (
+                          <button key={tab} onClick={() => setActiveBankTab(tab)} className={`px-5 py-2 md:py-2.5 rounded-full text-xs md:text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 ${activeBankTab === tab ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-800'}`}>
+                            {tab === 'BBVA' && !syncError && <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>}
+                            {tab}
+                          </button>
+                        ))}
+                      </div>
+                    </header>
+
+                    {viewMode === 'dashboard' ? (
+                      <div className="space-y-6 md:space-y-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                          <div className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-red-50 rounded-full -mr-12 -mt-12 md:-mr-16 md:-mt-16 transition-transform group-hover:scale-110 duration-500"></div>
+                            <div className="relative">
+                              <div className="w-10 h-10 md:w-12 md:h-12 bg-red-100 text-red-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6"><TrendingDown size={20} className="md:w-6 md:h-6" /></div>
+                              <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">Egreso Total</p>
+                              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black mt-1 text-slate-900 truncate" title={formatCurrency(stats.total)}>{formatCurrency(stats.total)}</h2>
+                            </div>
+                          </div>
+                          <div className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-indigo-50 rounded-full -mr-12 -mt-12 md:-mr-16 md:-mt-16 transition-transform group-hover:scale-110 duration-500"></div>
+                            <div className="relative">
+                              <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-100 text-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6"><CreditCard size={20} className="md:w-6 md:h-6" /></div>
+                              <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">Movimientos</p>
+                              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black mt-1 text-slate-900">{stats.count}</h2>
+                            </div>
+                          </div>
+                          <div className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group sm:col-span-2 lg:col-span-1">
+                            <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-amber-50 rounded-full -mr-12 -mt-12 md:-mr-16 md:-mt-16 transition-transform group-hover:scale-110 duration-500"></div>
+                            <div className="relative">
+                              <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-100 text-amber-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6"><PieChartIcon size={20} className="md:w-6 md:h-6" /></div>
+                              <p className="text-slate-500 font-bold text-[10px] md:text-xs uppercase tracking-widest">Tag Principal</p>
+                              <h2 className="text-lg md:text-xl font-black mt-1 text-slate-900 truncate" title={stats.topCategory ? stats.topCategory[0] : ''}>{stats.topCategory ? stats.topCategory[0] : 'N/A'}</h2>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className={`grid grid-cols-1 ${activeBankTab === 'General' ? 'lg:grid-cols-2' : ''} gap-4 md:gap-8`}>
+                          <div className="bg-white p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 md:mb-8">
+                              <h3 className="text-lg md:text-xl font-black">Gastos por Tag</h3>
+                              <span className="w-fit px-3 py-1 bg-slate-100 rounded-full text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ordenado por monto</span>
+                            </div>
+                            <div className="space-y-5 md:space-y-6 max-h-[400px] md:max-h-[500px] overflow-y-auto pr-2 scrollbar-hide">
+                              {stats.categorySpending.map(([name, value], idx) => {
+                                const percentage = (value / stats.total) * 100;
+                                const config = CATEGORY_CONFIG[name] || CATEGORY_CONFIG.default;
+                                const Icon = config.icon;
+                                return (
+                                  <div key={idx} className="group">
+                                    <div className="flex justify-between items-center mb-2 gap-2">
+                                      <div className="flex items-center gap-3 w-2/3">
+                                        <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-lg md:rounded-xl ${config.bg} ${config.color} flex items-center justify-center transition-transform group-hover:scale-110`}><Icon size={16} className="md:w-[18px] md:h-[18px]" /></div>
+                                        <div className="truncate">
+                                          <p className="text-xs md:text-sm font-bold text-slate-800 truncate" title={name}>{name}</p>
+                                          <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase">{Math.round(percentage)}% del total</p>
+                                        </div>
+                                      </div>
+                                      <span className="text-xs md:text-sm font-black text-slate-900 truncate w-1/3 text-right" title={formatCurrency(value)}>{formatCurrency(value)}</span>
                                     </div>
-                                    <div className="truncate">
-                                      <p className="text-xs md:text-sm font-black text-slate-900 leading-tight truncate" title={item.beneficiario}>{item.beneficiario}</p>
-                                      <span className={`text-[8px] md:text-[9px] font-bold px-2 py-0.5 rounded-full mt-1 md:mt-1.5 inline-block border ${item.tipo.toUpperCase() === 'DEDUCIBLE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                        {item.tipo}
-                                      </span>
+                                    <div className="w-full bg-slate-100 h-1.5 md:h-2 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-1000 ease-out ${name === 'Transferencia interna' ? 'bg-slate-300' : 'bg-indigo-500'}`} style={{ width: `${percentage}%` }}></div></div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          
+                          {activeBankTab === 'General' && (
+                            <div className="bg-white p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm flex flex-col">
+                              <h3 className="text-lg md:text-xl font-black mb-4 md:mb-8">Uso por Auxiliar (Banco)</h3>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 flex-1">
+                                {bankTabs.filter(a => a !== 'General').map(acc => {
+                                  const accTotal = appData.filter(d => d.banco === acc).reduce((a, b) => a + b.monto, 0);
+                                  const accCount = appData.filter(d => d.banco === acc).length;
+                                  if (accCount === 0) return null;
+                                  return (
+                                    <div key={acc} onClick={() => setActiveBankTab(acc)} className="p-4 md:p-5 rounded-2xl md:rounded-3xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group flex flex-col justify-between">
+                                      <div>
+                                        <div className="flex justify-between items-start mb-2">
+                                          <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">{acc}{acc === 'BBVA' && !syncError && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block ml-1"></span>}</p>
+                                          <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                                        </div>
+                                        <h4 className="text-base md:text-lg font-black text-slate-900 mb-2 truncate" title={formatCurrency(accTotal)}>{formatCurrency(accTotal)}</h4>
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200/60">
+                                        <List size={12} className="text-slate-400" />
+                                        <p className="text-[10px] md:text-xs font-bold text-slate-500">{accCount} movimientos</p>
+                                      </div>
                                     </div>
-                                  </div>
-                                </td>
-                                {activeBankTab === 'General' && (
-                                  <td className="px-4 md:px-6 py-3 md:py-5">
-                                    <span className="text-[10px] md:text-xs font-black text-slate-600 bg-slate-100 px-2 py-1 md:px-3 md:py-1 rounded-md md:rounded-lg whitespace-nowrap">
-                                      {item.banco}
-                                    </span>
-                                  </td>
-                                )}
-                                <td className="px-4 md:px-6 py-3 md:py-5">
-                                  <div>
-                                    <span className="text-xs md:text-sm font-bold text-slate-700 block mb-0.5 md:mb-1 truncate max-w-[150px] md:max-w-[200px]" title={item.tagOperativo}>
-                                      {item.tagOperativo}
-                                    </span>
-                                    <span className="text-[9px] md:text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-wider block w-fit truncate max-w-[150px] md:max-w-[200px]" title={item.cuentaContable}>
-                                      {item.cuentaContable}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-4 md:px-6 py-3 md:py-5 text-right">
-                                  <p className="text-xs md:text-sm font-black text-slate-900 whitespace-nowrap">-{formatCurrency(item.monto)}</p>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          {filteredData.length === 0 && (
-                            <tr>
-                              <td colSpan={activeBankTab === 'General' ? 5 : 4} className="px-4 md:px-6 py-10 md:py-16 text-center">
-                                 <div className="inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 rounded-full bg-slate-50 mb-3 md:mb-4">
-                                    <Search className="text-slate-300" size={20} className="md:w-6 md:h-6" />
-                                 </div>
-                                 <p className="text-sm text-slate-500 font-bold">No se encontraron movimientos.</p>
-                              </td>
-                            </tr>
+                                  );
+                                })}
+                              </div>
+                              <div className="mt-6 md:mt-8 p-5 md:p-6 bg-slate-900 rounded-2xl md:rounded-[1.5rem] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4 shadow-xl shadow-slate-900/10">
+                                <div><p className="text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-widest">Consolidado Total</p><p className="text-xl md:text-2xl font-black mt-1 text-indigo-400">General</p></div>
+                                <div className="sm:text-right"><p className="text-2xl md:text-3xl font-black truncate">{formatCurrency(stats.total)}</p></div>
+                              </div>
+                            </div>
                           )}
-                        </tbody>
-                      </table>
-                    </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden -mx-4 md:mx-0">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse min-w-[600px] md:min-w-full">
+                            <thead>
+                              <tr className="bg-slate-50/50 border-b border-slate-100">
+                                <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
+                                <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Concepto / Beneficiario</th>
+                                {activeBankTab === 'General' && <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Banco</th>}
+                                <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoría (Tag y Cta. Contable)</th>
+                                <th className="px-4 md:px-6 py-3 md:py-5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Monto</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                              {filteredData.map((item) => {
+                                const config = CATEGORY_CONFIG[item.tagOperativo] || CATEGORY_CONFIG.default;
+                                const Icon = config.icon;
+                                return (
+                                  <tr key={item.id} className="group hover:bg-slate-50/80 transition-all cursor-default">
+                                    <td className="px-4 md:px-6 py-3 md:py-5"><p className="text-xs md:text-sm font-bold text-slate-500 whitespace-nowrap">{item.fecha}</p></td>
+                                    <td className="px-4 md:px-6 py-3 md:py-5 min-w-[180px] sm:min-w-[250px] max-w-[200px] sm:max-w-[350px]">
+                                      <div className="flex items-center gap-3 md:gap-4">
+                                        <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-lg md:rounded-xl ${config.bg} ${config.color} flex items-center justify-center group-hover:scale-110 transition-transform`}><Icon size={16} className="md:w-[18px] md:h-[18px]" /></div>
+                                        <div className="truncate">
+                                          <p className="text-xs md:text-sm font-black text-slate-900 leading-tight truncate" title={item.beneficiario}>{item.beneficiario}</p>
+                                          <span className={`text-[8px] md:text-[9px] font-bold px-2 py-0.5 rounded-full mt-1 md:mt-1.5 inline-block border ${item.tipo.toUpperCase() === 'DEDUCIBLE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>{item.tipo}</span>
+                                        </div>
+                                      </div>
+                                    </td>
+                                    {activeBankTab === 'General' && <td className="px-4 md:px-6 py-3 md:py-5"><span className="text-[10px] md:text-xs font-black text-slate-600 bg-slate-100 px-2 py-1 md:px-3 md:py-1 rounded-md md:rounded-lg whitespace-nowrap">{item.banco}</span></td>}
+                                    <td className="px-4 md:px-6 py-3 md:py-5">
+                                      <div>
+                                        <span className="text-xs md:text-sm font-bold text-slate-700 block mb-0.5 md:mb-1 truncate max-w-[150px] md:max-w-[200px]" title={item.tagOperativo}>{item.tagOperativo}</span>
+                                        <span className="text-[9px] md:text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-wider block w-fit truncate max-w-[150px] md:max-w-[200px]" title={item.cuentaContable}>{item.cuentaContable}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 md:px-6 py-3 md:py-5 text-right"><p className="text-xs md:text-sm font-black text-slate-900 whitespace-nowrap">-{formatCurrency(item.monto)}</p></td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
