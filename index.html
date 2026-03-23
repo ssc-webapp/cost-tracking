@@ -1,448 +1,439 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  TrendingDown, 
-  CreditCard, 
-  Wallet, 
-  PieChart as PieChartIcon, 
-  LayoutDashboard, 
-  List, 
-  Search,
-  Car,
-  Utensils,
-  Building,
-  ShieldCheck,
-  Banknote,
-  ShoppingCart,
-  Plane,
-  Package,
-  Leaf,
-  ChevronRight,
-  Briefcase,
-  RefreshCcw,
-  Landmark,
-  Loader2,
-  Users,
-  Scale,
-  Calculator,
-  Truck,
-  Megaphone,
-  Zap,
-  Monitor,
-  AlertCircle
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Gastos - SSC Gourmet</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Babel para compilar React/JSX en el navegador -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-[#F8FAFC]">
+    <div id="root"></div>
 
-// =====================================================================
-// 🔗 CONEXIÓN A GOOGLE SHEETS
-// =====================================================================
-const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbxYG7DoId6o6dwkvpZI3i5XOSnOeuAPcCpkx85ExQnCT-MIuvcCbRqg_dn4NVl92lO4/exec";
+    <!-- Script de React usando importaciones dinámicas (ES Modules) -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useMemo, useEffect } from 'https://esm.sh/react@18.2.0';
+        import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
+        import { 
+          TrendingDown, CreditCard, Wallet, PieChart as PieChartIcon, 
+          LayoutDashboard, List, Search, Car, Utensils, Building, 
+          ShieldCheck, Banknote, ShoppingCart, Plane, Package, Leaf, 
+          ChevronRight, Briefcase, RefreshCcw, Landmark, Loader2, 
+          Users, Scale, Calculator, Truck, Megaphone, Zap, Monitor, AlertCircle
+        } from 'https://esm.sh/lucide-react@0.344.0';
 
-// Datos locales estáticos para las otras cuentas (mientras se migran)
-const STATIC_DATA = [
-  { id: 'amex-1', fecha: '2026-02-03', beneficiario: 'IAAM ELSA OPERADORA', monto: 3530.00, tagOperativo: 'Viaticos - Comida', cuentaContable: '52-01-0011-0000', banco: 'TC AMEX', tipo: 'DEDUCIBLE' },
-  { id: 'nea-1', fecha: '2026-02-02', beneficiario: 'AEROVIAS DE MEXICO', monto: 1399.00, tagOperativo: 'Viáticos', cuentaContable: '52-01-0047-0000', banco: 'TC NEA', tipo: 'DEDUCIBLE' },
-];
+        // =====================================================================
+        // 🔗 CONEXIÓN A GOOGLE SHEETS
+        // =====================================================================
+        const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbxYG7DoId6o6dwkvpZI3i5XOSnOeuAPcCpkx85ExQnCT-MIuvcCbRqg_dn4NVl92lO4/exec";
 
-const CATEGORY_CONFIG = {
-  // Tags Operativos Oficiales
-  'Nómina': { icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-100' },
-  'Legal mensual': { icon: Scale, color: 'text-slate-700', bg: 'bg-slate-200' },
-  'Honorarios externos': { icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-100' },
-  'Honorarios contables': { icon: Calculator, color: 'text-cyan-600', bg: 'bg-cyan-100' },
-  'Logística': { icon: Truck, color: 'text-amber-600', bg: 'bg-amber-100' },
-  'Materiales / Operación': { icon: Package, color: 'text-emerald-600', bg: 'bg-emerald-100' },
-  'Marketing': { icon: Megaphone, color: 'text-pink-600', bg: 'bg-pink-100' },
-  'Renta / Arrendamiento': { icon: Building, color: 'text-violet-600', bg: 'bg-violet-100' },
-  'Energía / Combustible': { icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-100' },
-  'Viáticos': { icon: Plane, color: 'text-sky-500', bg: 'bg-sky-100' },
-  'Software / Membresías': { icon: Monitor, color: 'text-fuchsia-600', bg: 'bg-fuchsia-100' },
-  'Comisiones Bancarias': { icon: ShieldCheck, color: 'text-slate-500', bg: 'bg-slate-100' },
-  'Transferencia interna': { icon: RefreshCcw, color: 'text-slate-400', bg: 'bg-slate-100' },
-  'Impuestos': { icon: Landmark, color: 'text-rose-600', bg: 'bg-rose-100' },
-  'Grano Verde': { icon: Leaf, color: 'text-green-600', bg: 'bg-green-100' },
-  'default': { icon: Banknote, color: 'text-gray-500', bg: 'bg-gray-100' }
-};
+        // Datos locales estáticos para las otras cuentas (mientras se migran)
+        const STATIC_DATA = [
+          { id: 'amex-1', fecha: '2026-02-03', beneficiario: 'IAAM ELSA OPERADORA', monto: 3530.00, tagOperativo: 'Viaticos - Comida', cuentaContable: '52-01-0011-0000', banco: 'TC AMEX', tipo: 'DEDUCIBLE' },
+          { id: 'nea-1', fecha: '2026-02-02', beneficiario: 'AEROVIAS DE MEXICO', monto: 1399.00, tagOperativo: 'Viáticos', cuentaContable: '52-01-0047-0000', banco: 'TC NEA', tipo: 'DEDUCIBLE' },
+        ];
 
-const App = () => {
-  const [appData, setAppData] = useState(STATIC_DATA);
-  const [isLoading, setIsLoading] = useState(false);
-  const [syncError, setSyncError] = useState(null);
-  
-  const [viewMode, setViewMode] = useState('dashboard');
-  const [activeBankTab, setActiveBankTab] = useState('BBVA'); // Empezar directo en BBVA para ver los datos cargados
-  const [searchTerm, setSearchTerm] = useState('');
+        const CATEGORY_CONFIG = {
+          // Tags Operativos Oficiales
+          'Nómina': { icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+          'Legal mensual': { icon: Scale, color: 'text-slate-700', bg: 'bg-slate-200' },
+          'Honorarios externos': { icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-100' },
+          'Honorarios contables': { icon: Calculator, color: 'text-cyan-600', bg: 'bg-cyan-100' },
+          'Logística': { icon: Truck, color: 'text-amber-600', bg: 'bg-amber-100' },
+          'Materiales / Operación': { icon: Package, color: 'text-emerald-600', bg: 'bg-emerald-100' },
+          'Marketing': { icon: Megaphone, color: 'text-pink-600', bg: 'bg-pink-100' },
+          'Renta / Arrendamiento': { icon: Building, color: 'text-violet-600', bg: 'bg-violet-100' },
+          'Energía / Combustible': { icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-100' },
+          'Viáticos': { icon: Plane, color: 'text-sky-500', bg: 'bg-sky-100' },
+          'Software / Membresías': { icon: Monitor, color: 'text-fuchsia-600', bg: 'bg-fuchsia-100' },
+          'Comisiones Bancarias': { icon: ShieldCheck, color: 'text-slate-500', bg: 'bg-slate-100' },
+          'Transferencia interna': { icon: RefreshCcw, color: 'text-slate-400', bg: 'bg-slate-100' },
+          'Impuestos': { icon: Landmark, color: 'text-rose-600', bg: 'bg-rose-100' },
+          'Grano Verde': { icon: Leaf, color: 'text-green-600', bg: 'bg-green-100' },
+          'default': { icon: Banknote, color: 'text-gray-500', bg: 'bg-gray-100' }
+        };
 
-  // 1. LIMPIEZA DE NÚMEROS (Crucial para leer "1,482,993.00")
-  const parseSafeFloat = (strValue) => {
-    if (!strValue) return 0;
-    // Remueve comas, signos de dólar y espacios
-    const cleanedString = String(strValue).replace(/[$,\s]/g, '');
-    const parsed = parseFloat(cleanedString);
-    return isNaN(parsed) ? 0 : parsed;
-  };
+        const App = () => {
+          const [appData, setAppData] = useState(STATIC_DATA);
+          const [isLoading, setIsLoading] = useState(false);
+          const [syncError, setSyncError] = useState(null);
+          
+          const [viewMode, setViewMode] = useState('dashboard');
+          const [activeBankTab, setActiveBankTab] = useState('BBVA'); 
+          const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    if (!GOOGLE_SHEET_URL) return;
+          const parseSafeFloat = (strValue) => {
+            if (!strValue) return 0;
+            const cleanedString = String(strValue).replace(/[$,\s]/g, '');
+            const parsed = parseFloat(cleanedString);
+            return isNaN(parsed) ? 0 : parsed;
+          };
 
-    const fetchSheetData = async () => {
-      setIsLoading(true);
-      setSyncError(null);
-      try {
-        const response = await fetch(GOOGLE_SHEET_URL);
-        if (!response.ok) throw new Error('Error en la respuesta del servidor');
-        
-        const data = await response.json();
+          useEffect(() => {
+            if (!GOOGLE_SHEET_URL) return;
 
-        const bbvaData = data
-          .map((row, idx) => {
-            // Limpiar valores vacíos o nulos de Google Sheets
-            const egresoHaber = parseSafeFloat(row['EGRESO (HABER)']);
-            
-            // Solo tomar los que realmente son egresos
-            if (egresoHaber <= 0) return null;
+            const fetchSheetData = async () => {
+              setIsLoading(true);
+              setSyncError(null);
+              try {
+                const response = await fetch(GOOGLE_SHEET_URL);
+                if (!response.ok) throw new Error('Error en la respuesta del servidor');
+                
+                const data = await response.json();
 
-            // Limpieza de fechas
-            let fechaLimpia = row['FECHA'] || '';
-            if (fechaLimpia.includes('T')) fechaLimpia = fechaLimpia.split('T')[0];
+                const bbvaData = data
+                  .map((row, idx) => {
+                    const egresoHaber = parseSafeFloat(row['EGRESO (HABER)']);
+                    if (egresoHaber <= 0) return null;
 
-            return {
-              id: `bbva-gs-${idx}`,
-              fecha: fechaLimpia,
-              beneficiario: row['BENEFICIARIO / CLIENTE'] || row['CONCEPTO BANCO'] || 'Desconocido',
-              monto: egresoHaber,
-              tagOperativo: row['TAG OPERATIVO'] || 'Sin clasificar',
-              cuentaContable: row['CUENTA CONTPAQi'] || row['CÓDIGO CONTPAQi'] || 'Sin Cuenta',
-              banco: 'BBVA',
-              tipo: row['TIPO'] || 'DEDUCIBLE'
+                    let fechaLimpia = row['FECHA'] || '';
+                    if (fechaLimpia.includes('T')) fechaLimpia = fechaLimpia.split('T')[0];
+
+                    return {
+                      id: `bbva-gs-${idx}`,
+                      fecha: fechaLimpia,
+                      beneficiario: row['BENEFICIARIO / CLIENTE'] || row['CONCEPTO BANCO'] || 'Desconocido',
+                      monto: egresoHaber,
+                      tagOperativo: row['TAG OPERATIVO'] || 'Sin clasificar',
+                      cuentaContable: row['CUENTA CONTPAQi'] || row['CÓDIGO CONTPAQi'] || 'Sin Cuenta',
+                      banco: 'BBVA',
+                      tipo: row['TIPO'] || 'DEDUCIBLE'
+                    };
+                  })
+                  .filter(Boolean); 
+
+                setAppData([...STATIC_DATA, ...bbvaData]);
+
+              } catch (error) {
+                console.error("Error al cargar datos desde Google Sheets:", error);
+                setSyncError("Error de sincronización. Mostrando datos offline.");
+              } finally {
+                setIsLoading(false);
+              }
             };
-          })
-          .filter(Boolean); // Elimina los nulls generados arriba
 
-        setAppData([...STATIC_DATA, ...bbvaData]);
+            fetchSheetData();
+          }, []);
 
-      } catch (error) {
-        console.error("Error al cargar datos desde Google Sheets:", error);
-        setSyncError("Error de sincronización. Mostrando datos offline.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+          const bankTabs = useMemo(() => ['General', ...new Set(appData.map(d => d.banco))], [appData]);
 
-    fetchSheetData();
-  }, []);
+          const filteredData = useMemo(() => {
+            return appData.filter(item => {
+              const matchAccount = activeBankTab === 'General' || item.banco === activeBankTab;
+              const term = searchTerm.toLowerCase();
+              const matchSearch = 
+                item.beneficiario.toLowerCase().includes(term) || 
+                item.tagOperativo.toLowerCase().includes(term) ||
+                item.cuentaContable.toLowerCase().includes(term);
+              return matchAccount && matchSearch;
+            });
+          }, [appData, activeBankTab, searchTerm]);
 
-  const bankTabs = useMemo(() => ['General', ...new Set(appData.map(d => d.banco))], [appData]);
+          const stats = useMemo(() => {
+            const total = filteredData.reduce((acc, curr) => acc + curr.monto, 0);
+            const count = filteredData.length;
+            
+            const byCategory = filteredData.reduce((acc, curr) => {
+              acc[curr.tagOperativo] = (acc[curr.tagOperativo] || 0) + curr.monto;
+              return acc;
+            }, {});
+            
+            const byCategoryForTop = { ...byCategory };
+            delete byCategoryForTop['Transferencia interna'];
+            const sortedForTop = Object.entries(byCategoryForTop).sort((a, b) => b[1] - a[1]);
+            
+            const sorted = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+            
+            return { total, count, topCategory: sortedForTop[0], categorySpending: sorted };
+          }, [filteredData]);
 
-  const filteredData = useMemo(() => {
-    return appData.filter(item => {
-      const matchAccount = activeBankTab === 'General' || item.banco === activeBankTab;
-      const term = searchTerm.toLowerCase();
-      const matchSearch = 
-        item.beneficiario.toLowerCase().includes(term) || 
-        item.tagOperativo.toLowerCase().includes(term) ||
-        item.cuentaContable.toLowerCase().includes(term);
-      return matchAccount && matchSearch;
-    });
-  }, [appData, activeBankTab, searchTerm]);
+          const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val);
 
-  const stats = useMemo(() => {
-    const total = filteredData.reduce((acc, curr) => acc + curr.monto, 0);
-    const count = filteredData.length;
-    
-    // Agrupar por TAG OPERATIVO (Categoría principal)
-    const byCategory = filteredData.reduce((acc, curr) => {
-      acc[curr.tagOperativo] = (acc[curr.tagOperativo] || 0) + curr.monto;
-      return acc;
-    }, {});
-    
-    // Excluir 'Transferencia interna' para identificar la categoría de GASTO real más alta
-    const byCategoryForTop = { ...byCategory };
-    delete byCategoryForTop['Transferencia interna'];
-    const sortedForTop = Object.entries(byCategoryForTop).sort((a, b) => b[1] - a[1]);
-    
-    const sorted = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
-    
-    return { total, count, topCategory: sortedForTop[0], categorySpending: sorted };
-  }, [filteredData]);
+          return (
+            <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20 md:pb-0 font-sans">
+              <nav className="fixed bottom-0 left-0 right-0 md:top-0 md:h-full md:w-24 bg-white border-t md:border-t-0 md:border-r border-slate-200 z-50 flex md:flex-col justify-around md:justify-start items-center p-4 md:pt-10 gap-8 shadow-sm">
+                <div className="hidden md:flex w-12 h-12 bg-slate-900 rounded-2xl items-center justify-center text-white mb-6 shadow-lg relative">
+                  <Banknote size={24} />
+                  {isLoading && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => setViewMode('dashboard')} className={`p-3 rounded-2xl transition-all ${viewMode === 'dashboard' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <LayoutDashboard size={24} />
+                </button>
+                <button onClick={() => setViewMode('list')} className={`p-3 rounded-2xl transition-all ${viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <List size={24} />
+                </button>
+              </nav>
 
-  const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val);
+              <div className="md:ml-24 p-4 md:p-8 max-w-7xl mx-auto">
+                <header className="mb-8">
+                  {syncError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm flex items-center gap-2 font-medium">
+                      <AlertCircle size={16} />
+                      {syncError}
+                    </div>
+                  )}
 
-  return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20 md:pb-0 font-sans">
-      <nav className="fixed bottom-0 left-0 right-0 md:top-0 md:h-full md:w-24 bg-white border-t md:border-t-0 md:border-r border-slate-200 z-50 flex md:flex-col justify-around md:justify-start items-center p-4 md:pt-10 gap-8 shadow-sm">
-        <div className="hidden md:flex w-12 h-12 bg-slate-900 rounded-2xl items-center justify-center text-white mb-6 shadow-lg relative">
-          <Banknote size={24} />
-          {isLoading && (
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-          )}
-        </div>
-        <button onClick={() => setViewMode('dashboard')} className={`p-3 rounded-2xl transition-all ${viewMode === 'dashboard' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
-          <LayoutDashboard size={24} />
-        </button>
-        <button onClick={() => setViewMode('list')} className={`p-3 rounded-2xl transition-all ${viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
-          <List size={24} />
-        </button>
-      </nav>
+                  <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-6">
+                    <div>
+                      <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
+                        Estado de Resultados (Egresos)
+                        {isLoading && <Loader2 className="animate-spin text-indigo-500" size={20} />}
+                      </h1>
+                      <p className="text-slate-500 font-medium mt-1">
+                        {isLoading ? 'Calculando saldos reales...' : `Sincronizado • Mostrando ${filteredData.length} transacciones`}
+                      </p>
+                    </div>
 
-      <div className="md:ml-24 p-4 md:p-8 max-w-7xl mx-auto">
-        <header className="mb-8">
-          {syncError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm flex items-center gap-2 font-medium">
-              <AlertCircle size={16} />
-              {syncError}
-            </div>
-          )}
-
-          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-6">
-            <div>
-              <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-                Estado de Resultados (Egresos)
-                {isLoading && <Loader2 className="animate-spin text-indigo-500" size={20} />}
-              </h1>
-              <p className="text-slate-500 font-medium mt-1">
-                {isLoading ? 'Calculando saldos reales...' : `Sincronizado • Mostrando ${filteredData.length} transacciones`}
-              </p>
-            </div>
-
-            <div className="relative group min-w-[300px]">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
-              <input 
-                type="text" 
-                placeholder="Buscar por beneficiario o cuenta contable..." 
-                className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm font-medium"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-hide border-b border-slate-200">
-            {bankTabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveBankTab(tab)}
-                className={`px-6 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
-                  activeBankTab === tab 
-                  ? 'bg-slate-900 text-white shadow-md' 
-                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-800'
-                }`}
-              >
-                {tab === 'BBVA' && !syncError && (
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
-                )}
-                {tab}
-              </button>
-            ))}
-          </div>
-        </header>
-
-        {viewMode === 'dashboard' ? (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500" />
-                <div className="relative">
-                  <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6">
-                    <TrendingDown size={24} />
+                    <div className="relative group min-w-[300px]">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                      <input 
+                        type="text" 
+                        placeholder="Buscar por beneficiario o cuenta contable..." 
+                        className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm font-medium"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">
-                    Egreso Total
-                  </p>
-                  <h2 className="text-3xl lg:text-4xl font-black mt-1 text-slate-900">{formatCurrency(stats.total)}</h2>
-                </div>
-              </div>
 
-              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500" />
-                <div className="relative">
-                  <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-6">
-                    <CreditCard size={24} />
+                  <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-hide border-b border-slate-200">
+                    {bankTabs.map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveBankTab(tab)}
+                        className={`px-6 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
+                          activeBankTab === tab 
+                          ? 'bg-slate-900 text-white shadow-md' 
+                          : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-800'
+                        }`}
+                      >
+                        {tab === 'BBVA' && !syncError && (
+                          <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                        )}
+                        {tab}
+                      </button>
+                    ))}
                   </div>
-                  <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Movimientos</p>
-                  <h2 className="text-4xl font-black mt-1 text-slate-900">{stats.count}</h2>
-                </div>
-              </div>
+                </header>
 
-              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500" />
-                <div className="relative">
-                  <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-6">
-                    <PieChartIcon size={24} />
-                  </div>
-                  <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Tag Principal</p>
-                  <h2 className="text-xl font-black mt-2 text-slate-900 truncate" title={stats.topCategory ? stats.topCategory[0] : ''}>
-                    {stats.topCategory ? stats.topCategory[0] : 'N/A'}
-                  </h2>
-                </div>
-              </div>
-            </div>
-
-            <div className={`grid grid-cols-1 ${activeBankTab === 'General' ? 'lg:grid-cols-2' : ''} gap-8`}>
-              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-xl font-black">Gastos por Tag Operativo</h3>
-                  <span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ordenado por monto</span>
-                </div>
-                <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 scrollbar-hide">
-                  {stats.categorySpending.map(([name, value], idx) => {
-                    const percentage = (value / stats.total) * 100;
-                    const config = CATEGORY_CONFIG[name] || CATEGORY_CONFIG.default;
-                    const Icon = config.icon;
-                    return (
-                      <div key={idx} className="group">
-                        <div className="flex justify-between items-center mb-2">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 shrink-0 rounded-xl ${config.bg} ${config.color} flex items-center justify-center transition-transform group-hover:scale-110`}>
-                              <Icon size={18} />
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold text-slate-800">{name}</p>
-                              <p className="text-[10px] text-slate-400 font-bold uppercase">{Math.round(percentage)}% del total</p>
-                            </div>
+                {viewMode === 'dashboard' ? (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500"></div>
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6">
+                            <TrendingDown size={24} />
                           </div>
-                          <span className="text-sm font-black text-slate-900">{formatCurrency(value)}</span>
-                        </div>
-                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-1000 ease-out ${name === 'Transferencia interna' ? 'bg-slate-300' : 'bg-indigo-500'}`}
-                            style={{ width: `${percentage}%` }}
-                          />
+                          <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">
+                            Egreso Total
+                          </p>
+                          <h2 className="text-3xl lg:text-4xl font-black mt-1 text-slate-900">{formatCurrency(stats.total)}</h2>
                         </div>
                       </div>
-                    );
-                  })}
-                  {stats.categorySpending.length === 0 && (
-                    <p className="text-center text-slate-400 py-4 font-medium">No hay gastos para mostrar.</p>
-                  )}
-                </div>
-              </div>
 
-              {activeBankTab === 'General' && (
-                <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col">
-                  <h3 className="text-xl font-black mb-8">Uso por Auxiliar (Banco)</h3>
-                  <div className="grid grid-cols-2 gap-4 flex-1">
-                    {bankTabs.filter(a => a !== 'General').map(acc => {
-                      const accTotal = appData.filter(d => d.banco === acc).reduce((a, b) => a + b.monto, 0);
-                      const accCount = appData.filter(d => d.banco === acc).length;
-                      
-                      if (accCount === 0) return null;
-
-                      return (
-                        <div 
-                          key={acc} 
-                          onClick={() => setActiveBankTab(acc)}
-                          className="p-5 rounded-3xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group flex flex-col justify-between"
-                        >
-                          <div>
-                            <div className="flex justify-between items-start mb-2">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                                {acc}
-                                {acc === 'BBVA' && !syncError && <span title="Sincronizado" className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block ml-1"></span>}
-                              </p>
-                              <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-500 transition-colors" />
-                            </div>
-                            <h4 className="text-lg font-black text-slate-900 mb-2 truncate" title={formatCurrency(accTotal)}>{formatCurrency(accTotal)}</h4>
+                      <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500"></div>
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-6">
+                            <CreditCard size={24} />
                           </div>
-                          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200/60">
-                            <List size={12} className="text-slate-400" />
-                            <p className="text-xs font-bold text-slate-500">{accCount} movimientos</p>
+                          <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Movimientos</p>
+                          <h2 className="text-4xl font-black mt-1 text-slate-900">{stats.count}</h2>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500"></div>
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-6">
+                            <PieChartIcon size={24} />
+                          </div>
+                          <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Tag Principal</p>
+                          <h2 className="text-xl font-black mt-2 text-slate-900 truncate" title={stats.topCategory ? stats.topCategory[0] : ''}>
+                            {stats.topCategory ? stats.topCategory[0] : 'N/A'}
+                          </h2>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`grid grid-cols-1 ${activeBankTab === 'General' ? 'lg:grid-cols-2' : ''} gap-8`}>
+                      <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                        <div className="flex items-center justify-between mb-8">
+                          <h3 className="text-xl font-black">Gastos por Tag Operativo</h3>
+                          <span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ordenado por monto</span>
+                        </div>
+                        <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 scrollbar-hide">
+                          {stats.categorySpending.map(([name, value], idx) => {
+                            const percentage = (value / stats.total) * 100;
+                            const config = CATEGORY_CONFIG[name] || CATEGORY_CONFIG.default;
+                            const Icon = config.icon;
+                            return (
+                              <div key={idx} className="group">
+                                <div className="flex justify-between items-center mb-2">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 shrink-0 rounded-xl ${config.bg} ${config.color} flex items-center justify-center transition-transform group-hover:scale-110`}>
+                                      <Icon size={18} />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-bold text-slate-800">{name}</p>
+                                      <p className="text-[10px] text-slate-400 font-bold uppercase">{Math.round(percentage)}% del total</p>
+                                    </div>
+                                  </div>
+                                  <span className="text-sm font-black text-slate-900">{formatCurrency(value)}</span>
+                                </div>
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all duration-1000 ease-out ${name === 'Transferencia interna' ? 'bg-slate-300' : 'bg-indigo-500'}`}
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {stats.categorySpending.length === 0 && (
+                            <p className="text-center text-slate-400 py-4 font-medium">No hay gastos para mostrar.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {activeBankTab === 'General' && (
+                        <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col">
+                          <h3 className="text-xl font-black mb-8">Uso por Auxiliar (Banco)</h3>
+                          <div className="grid grid-cols-2 gap-4 flex-1">
+                            {bankTabs.filter(a => a !== 'General').map(acc => {
+                              const accTotal = appData.filter(d => d.banco === acc).reduce((a, b) => a + b.monto, 0);
+                              const accCount = appData.filter(d => d.banco === acc).length;
+                              
+                              if (accCount === 0) return null;
+
+                              return (
+                                <div 
+                                  key={acc} 
+                                  onClick={() => setActiveBankTab(acc)}
+                                  className="p-5 rounded-3xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group flex flex-col justify-between"
+                                >
+                                  <div>
+                                    <div className="flex justify-between items-start mb-2">
+                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                        {acc}
+                                        {acc === 'BBVA' && !syncError && <span title="Sincronizado" className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block ml-1"></span>}
+                                      </p>
+                                      <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                                    </div>
+                                    <h4 className="text-lg font-black text-slate-900 mb-2 truncate" title={formatCurrency(accTotal)}>{formatCurrency(accTotal)}</h4>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200/60">
+                                    <List size={12} className="text-slate-400" />
+                                    <p className="text-xs font-bold text-slate-500">{accCount} movimientos</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          
+                          <div className="mt-8 p-6 bg-slate-900 rounded-[1.5rem] text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl shadow-slate-900/10">
+                            <div>
+                              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Consolidado Total</p>
+                              <p className="text-2xl font-black mt-1 text-indigo-400">General</p>
+                            </div>
+                            <div className="md:text-right">
+                              <p className="text-3xl font-black truncate">{formatCurrency(stats.total)}</p>
+                            </div>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                  
-                  <div className="mt-8 p-6 bg-slate-900 rounded-[1.5rem] text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl shadow-slate-900/10">
-                    <div>
-                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Consolidado Total</p>
-                      <p className="text-2xl font-black mt-1 text-indigo-400">General</p>
-                    </div>
-                    <div className="md:text-right">
-                      <p className="text-3xl font-black truncate">{formatCurrency(stats.total)}</p>
+                      )}
                     </div>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/50 border-b border-slate-100">
+                            <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
+                            <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Concepto / Beneficiario</th>
+                            {activeBankTab === 'General' && <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Banco</th>}
+                            <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoría (Tag y Cta. Contable)</th>
+                            <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Monto</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {filteredData.map((item) => {
+                            const config = CATEGORY_CONFIG[item.tagOperativo] || CATEGORY_CONFIG.default;
+                            const Icon = config.icon;
+                            return (
+                              <tr key={item.id} className="group hover:bg-slate-50/80 transition-all cursor-default">
+                                <td className="px-6 py-5">
+                                  <p className="text-sm font-bold text-slate-500 whitespace-nowrap">{item.fecha}</p>
+                                </td>
+                                <td className="px-6 py-5 min-w-[250px] max-w-[350px]">
+                                  <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 shrink-0 rounded-xl ${config.bg} ${config.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                                      <Icon size={18} />
+                                    </div>
+                                    <div className="truncate">
+                                      <p className="text-sm font-black text-slate-900 leading-tight truncate" title={item.beneficiario}>{item.beneficiario}</p>
+                                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full mt-1.5 inline-block border ${item.tipo.toUpperCase() === 'DEDUCIBLE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                        {item.tipo}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                                {activeBankTab === 'General' && (
+                                  <td className="px-6 py-5">
+                                    <span className="text-xs font-black text-slate-600 bg-slate-100 px-3 py-1 rounded-lg whitespace-nowrap">
+                                      {item.banco}
+                                    </span>
+                                  </td>
+                                )}
+                                <td className="px-6 py-5">
+                                  <div>
+                                    <span className="text-sm font-bold text-slate-700 block mb-1">
+                                      {item.tagOperativo}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider block w-fit truncate max-w-[200px]" title={item.cuentaContable}>
+                                      {item.cuentaContable}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-5 text-right">
+                                  <p className="text-sm font-black text-slate-900 whitespace-nowrap">-{formatCurrency(item.monto)}</p>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {filteredData.length === 0 && (
+                            <tr>
+                              <td colSpan={activeBankTab === 'General' ? 5 : 4} className="px-6 py-16 text-center">
+                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 mb-4">
+                                    <Search className="text-slate-300" size={24} />
+                                 </div>
+                                 <p className="text-slate-500 font-bold">No se encontraron movimientos.</p>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Concepto / Beneficiario</th>
-                    {activeBankTab === 'General' && <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Banco</th>}
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoría (Tag y Cta. Contable)</th>
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Monto</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {filteredData.map((item) => {
-                    const config = CATEGORY_CONFIG[item.tagOperativo] || CATEGORY_CONFIG.default;
-                    const Icon = config.icon;
-                    return (
-                      <tr key={item.id} className="group hover:bg-slate-50/80 transition-all cursor-default">
-                        <td className="px-6 py-5">
-                          <p className="text-sm font-bold text-slate-500 whitespace-nowrap">{item.fecha}</p>
-                        </td>
-                        <td className="px-6 py-5 min-w-[250px] max-w-[350px]">
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 shrink-0 rounded-xl ${config.bg} ${config.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                              <Icon size={18} />
-                            </div>
-                            <div className="truncate">
-                              <p className="text-sm font-black text-slate-900 leading-tight truncate" title={item.beneficiario}>{item.beneficiario}</p>
-                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full mt-1.5 inline-block border ${item.tipo.toUpperCase() === 'DEDUCIBLE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                {item.tipo}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        {activeBankTab === 'General' && (
-                          <td className="px-6 py-5">
-                            <span className="text-xs font-black text-slate-600 bg-slate-100 px-3 py-1 rounded-lg whitespace-nowrap">
-                              {item.banco}
-                            </span>
-                          </td>
-                        )}
-                        <td className="px-6 py-5">
-                          <div>
-                            <span className="text-sm font-bold text-slate-700 block mb-1">
-                              {item.tagOperativo}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider block w-fit truncate max-w-[200px]" title={item.cuentaContable}>
-                              {item.cuentaContable}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 text-right">
-                          <p className="text-sm font-black text-slate-900 whitespace-nowrap">-{formatCurrency(item.monto)}</p>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {filteredData.length === 0 && (
-                    <tr>
-                      <td colSpan={activeBankTab === 'General' ? 5 : 4} className="px-6 py-16 text-center">
-                         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 mb-4">
-                            <Search className="text-slate-300" size={24} />
-                         </div>
-                         <p className="text-slate-500 font-bold">No se encontraron movimientos.</p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+          );
+        };
 
-export default App;
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
