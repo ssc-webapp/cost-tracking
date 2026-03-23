@@ -1,0 +1,350 @@
+import React, { useState, useMemo } from 'react';
+import { 
+  TrendingDown, 
+  CreditCard, 
+  Wallet, 
+  PieChart as PieChartIcon, 
+  LayoutDashboard, 
+  List, 
+  Search,
+  Car,
+  Utensils,
+  Building,
+  ShieldCheck,
+  Banknote,
+  ShoppingCart,
+  Plane,
+  Package,
+  Leaf,
+  ChevronRight
+} from 'lucide-react';
+
+// Base de datos actualizada con las nuevas extracciones de los Auxiliares de Enero/Febrero/Marzo
+const RAW_DATA = [
+  // TC AMEX
+  { id: 1, fecha: '2026-02-03', beneficiario: 'IAAM ELSA OPERADORA', monto: 3530.00, categoria: 'Viaticos - Comida', banco: 'TC AMEX', tipo: 'DEDUCIBLE' },
+  { id: 2, fecha: '2026-02-03', beneficiario: 'IAAM ELSA OPERADORA', monto: 529.50, categoria: 'Viaticos - Comida', banco: 'TC AMEX', tipo: 'NO DEDUCIBLE' },
+  { id: 3, fecha: '2026-02-25', beneficiario: 'SOMOS REYES', monto: 869.00, categoria: 'Gastos de Oficina', banco: 'TC AMEX', tipo: 'DEDUCIBLE' },
+  { id: 4, fecha: '2026-02-26', beneficiario: 'AMAZON MX MARKETPLACE', monto: 365.01, categoria: 'Gastos de Oficina', banco: 'TC AMEX', tipo: 'DEDUCIBLE' },
+  
+  // TC NEA
+  { id: 5, fecha: '2026-02-02', beneficiario: 'AEROVIAS DE MEXICO', monto: 1399.00, categoria: 'Viaticos - Transporte', banco: 'TC NEA', tipo: 'DEDUCIBLE' },
+  { id: 6, fecha: '2026-02-26', beneficiario: 'PLASTICOS METEPEC', monto: 1853.68, categoria: 'Packaging', banco: 'TC NEA', tipo: 'DEDUCIBLE' },
+  { id: 7, fecha: '2026-02-26', beneficiario: 'MERCADOPAGO MERCADOL', monto: 495.94, categoria: 'Packaging', banco: 'TC NEA', tipo: 'DEDUCIBLE' },
+  { id: 8, fecha: '2026-02-26', beneficiario: 'UBIC CENTER', monto: 991.09, categoria: 'Insumos para venta al 16%', banco: 'TC NEA', tipo: 'DEDUCIBLE' },
+  { id: 9, fecha: '2026-02-27', beneficiario: 'GASOL RUTA MAYA I', monto: 2457.00, categoria: 'Combustibles', banco: 'TC NEA', tipo: 'DEDUCIBLE' },
+
+  // TC CLARA
+  { id: 10, fecha: '2026-02-01', beneficiario: 'CF TECH', monto: 9.46, categoria: 'Comisiones bancarias', banco: 'TC CLARA', tipo: 'DEDUCIBLE' },
+  { id: 11, fecha: '2026-02-01', beneficiario: 'CF TECH', monto: 59.11, categoria: 'Comisiones bancarias', banco: 'TC CLARA', tipo: 'DEDUCIBLE' },
+  { id: 12, fecha: '2026-02-25', beneficiario: 'SERVICIO BOTURINI', monto: 1432.02, categoria: 'Combustibles', banco: 'TC CLARA', tipo: 'DEDUCIBLE' },
+
+  // BANREGIO
+  { id: 13, fecha: '2026-02-03', beneficiario: 'START BANREGIO', monto: 204.15, categoria: 'Pago de arrendamientos', banco: 'BANREGIO', tipo: 'DEDUCIBLE' },
+
+  // STP QUANT
+  { id: 14, fecha: '2026-02-03', beneficiario: 'QUANT CAPITAL', monto: 774.91, categoria: 'Comisiones bancarias', banco: 'STP QUANT', tipo: 'DEDUCIBLE' },
+  { id: 15, fecha: '2026-02-03', beneficiario: 'QUANT CAPITAL', monto: 435.43, categoria: 'Comisiones bancarias', banco: 'STP QUANT', tipo: 'DEDUCIBLE' },
+
+  // BBVA
+  { id: 16, fecha: '2026-02-27', beneficiario: 'EXPORTADORA DE CAFE CALIFORNIA', monto: 35052.00, categoria: 'Grano Verde', banco: 'BBVA', tipo: 'DEDUCIBLE' },
+];
+
+const CATEGORY_CONFIG = {
+  'Viaticos - Comida': { icon: Utensils, color: 'text-orange-500', bg: 'bg-orange-100' },
+  'Viaticos - Transporte': { icon: Plane, color: 'text-blue-500', bg: 'bg-blue-100' },
+  'Comisiones bancarias': { icon: ShieldCheck, color: 'text-slate-500', bg: 'bg-slate-100' },
+  'Gastos de Oficina': { icon: Building, color: 'text-purple-500', bg: 'bg-purple-100' },
+  'Pago de arrendamientos': { icon: Wallet, color: 'text-indigo-500', bg: 'bg-indigo-100' },
+  'Combustibles': { icon: Car, color: 'text-red-500', bg: 'bg-red-100' },
+  'Packaging': { icon: Package, color: 'text-amber-600', bg: 'bg-amber-100' },
+  'Insumos para venta al 16%': { icon: ShoppingCart, color: 'text-emerald-500', bg: 'bg-emerald-100' },
+  'Grano Verde': { icon: Leaf, color: 'text-green-600', bg: 'bg-green-100' },
+  'default': { icon: Banknote, color: 'text-gray-500', bg: 'bg-gray-100' }
+};
+
+const App = () => {
+  const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard' o 'list'
+  const [activeBankTab, setActiveBankTab] = useState('General'); // 'General' o banco específico
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Generar dinámicamente las pestañas de los bancos
+  const bankTabs = useMemo(() => ['General', ...new Set(RAW_DATA.map(d => d.banco))], []);
+
+  const filteredData = useMemo(() => {
+    return RAW_DATA.filter(item => {
+      const matchAccount = activeBankTab === 'General' || item.banco === activeBankTab;
+      const matchSearch = item.beneficiario.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          item.categoria.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchAccount && matchSearch;
+    });
+  }, [activeBankTab, searchTerm]);
+
+  const stats = useMemo(() => {
+    const total = filteredData.reduce((acc, curr) => acc + curr.monto, 0);
+    const count = filteredData.length;
+    const byCategory = filteredData.reduce((acc, curr) => {
+      acc[curr.categoria] = (acc[curr.categoria] || 0) + curr.monto;
+      return acc;
+    }, {});
+    const sorted = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+    
+    return { total, count, topCategory: sorted[0], categorySpending: sorted };
+  }, [filteredData]);
+
+  const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val);
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20 md:pb-0">
+      {/* Sidebar (Desktop) / Bottom Nav (Mobile) para cambiar vista (Dashboard vs Tabla) */}
+      <nav className="fixed bottom-0 left-0 right-0 md:top-0 md:h-full md:w-24 bg-white border-t md:border-t-0 md:border-r border-slate-200 z-50 flex md:flex-col justify-around md:justify-start items-center p-4 md:pt-10 gap-8 shadow-sm">
+        <div className="hidden md:flex w-12 h-12 bg-indigo-600 rounded-2xl items-center justify-center text-white mb-6 shadow-lg shadow-indigo-200">
+          <Banknote size={24} />
+        </div>
+        <button onClick={() => setViewMode('dashboard')} className={`p-3 rounded-2xl transition-all ${viewMode === 'dashboard' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
+          <LayoutDashboard size={24} />
+        </button>
+        <button onClick={() => setViewMode('list')} className={`p-3 rounded-2xl transition-all ${viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400 hover:text-slate-600'}`}>
+          <List size={24} />
+        </button>
+      </nav>
+
+      {/* Main Content Area */}
+      <div className="md:ml-24 p-4 md:p-8 max-w-7xl mx-auto">
+        <header className="mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-6">
+            <div>
+              <h1 className="text-3xl font-black tracking-tight text-slate-900">Dashboard de Egresos</h1>
+              <p className="text-slate-500 font-medium mt-1">Febrero 2026 • Visualizando datos de Auxiliares</p>
+            </div>
+
+            <div className="relative group min-w-[300px]">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+              <input 
+                type="text" 
+                placeholder="Buscar movimiento..." 
+                className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Auxiliares Tabs (Pestañas por Banco) */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-hide border-b border-slate-200">
+            {bankTabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveBankTab(tab)}
+                className={`px-6 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
+                  activeBankTab === tab 
+                  ? 'bg-slate-800 text-white shadow-md' 
+                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-800'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        {viewMode === 'dashboard' ? (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500" />
+                <div className="relative">
+                  <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6">
+                    <TrendingDown size={24} />
+                  </div>
+                  <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">
+                    {activeBankTab === 'General' ? 'Gasto Total' : `Gasto ${activeBankTab}`}
+                  </p>
+                  <h2 className="text-4xl font-black mt-1 text-slate-900">{formatCurrency(stats.total)}</h2>
+                </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500" />
+                <div className="relative">
+                  <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-6">
+                    <CreditCard size={24} />
+                  </div>
+                  <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Movimientos</p>
+                  <h2 className="text-4xl font-black mt-1 text-slate-900">{stats.count}</h2>
+                </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500" />
+                <div className="relative">
+                  <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-6">
+                    <PieChartIcon size={24} />
+                  </div>
+                  <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Mayor Categoría</p>
+                  <h2 className="text-xl font-black mt-2 text-slate-900 truncate">
+                    {stats.topCategory ? stats.topCategory[0] : 'N/A'}
+                  </h2>
+                </div>
+              </div>
+            </div>
+
+            {/* Visual Charts Section */}
+            <div className={`grid grid-cols-1 ${activeBankTab === 'General' ? 'lg:grid-cols-2' : ''} gap-8`}>
+              
+              {/* Category Ranking */}
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-xl font-black">Gastos por Categoría</h3>
+                  <span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ordenado por monto</span>
+                </div>
+                <div className="space-y-6">
+                  {stats.categorySpending.map(([name, value], idx) => {
+                    const percentage = (value / stats.total) * 100;
+                    const config = CATEGORY_CONFIG[name] || CATEGORY_CONFIG.default;
+                    const Icon = config.icon;
+                    return (
+                      <div key={idx} className="group">
+                        <div className="flex justify-between items-center mb-2">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl ${config.bg} ${config.color} flex items-center justify-center transition-transform group-hover:scale-110`}>
+                              <Icon size={18} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-800">{name}</p>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase">{Math.round(percentage)}% del total</p>
+                            </div>
+                          </div>
+                          <span className="text-sm font-black text-slate-900">{formatCurrency(value)}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-indigo-500 rounded-full transition-all duration-1000 ease-out"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {stats.categorySpending.length === 0 && (
+                    <p className="text-center text-slate-400 py-4 font-medium">No hay gastos para mostrar.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Bank Distribution - SOLO VISIBLE EN TAB GENERAL */}
+              {activeBankTab === 'General' && (
+                <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                  <h3 className="text-xl font-black mb-8">Uso por Auxiliar (Banco)</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {bankTabs.filter(a => a !== 'General').map(acc => {
+                      const accTotal = RAW_DATA.filter(d => d.banco === acc).reduce((a, b) => a + b.monto, 0);
+                      const accCount = RAW_DATA.filter(d => d.banco === acc).length;
+                      
+                      // Omitir bancos sin movimientos en esta muestra para limpiar la UI
+                      if (accCount === 0) return null;
+
+                      return (
+                        <div 
+                          key={acc} 
+                          onClick={() => setActiveBankTab(acc)}
+                          className="p-5 rounded-3xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group"
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{acc}</p>
+                            <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                          </div>
+                          <h4 className="text-lg font-black text-slate-900 mb-2">{formatCurrency(accTotal)}</h4>
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                            <p className="text-xs font-bold text-slate-500">{accCount} movs</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  <div className="mt-8 p-6 bg-slate-900 rounded-[1.5rem] text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Consolidado Total</p>
+                      <p className="text-2xl font-black mt-1 text-indigo-400">General</p>
+                    </div>
+                    <div className="md:text-right">
+                      <p className="text-3xl font-black">{formatCurrency(stats.total)}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Detailed List View */
+          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
+                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Concepto / Beneficiario</th>
+                    {activeBankTab === 'General' && <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Auxiliar</th>}
+                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoría</th>
+                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Monto</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredData.map((item) => {
+                    const config = CATEGORY_CONFIG[item.categoria] || CATEGORY_CONFIG.default;
+                    const Icon = config.icon;
+                    return (
+                      <tr key={item.id} className="group hover:bg-slate-50/80 transition-all cursor-default">
+                        <td className="px-8 py-5">
+                          <p className="text-sm font-bold text-slate-500">{item.fecha}</p>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-xl ${config.bg} ${config.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                              <Icon size={18} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-black text-slate-900 leading-tight">{item.beneficiario}</p>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${item.tipo === 'DEDUCIBLE' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                                {item.tipo}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        {activeBankTab === 'General' && (
+                          <td className="px-8 py-5">
+                            <span className="text-xs font-black text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
+                              {item.banco}
+                            </span>
+                          </td>
+                        )}
+                        <td className="px-8 py-5 text-sm font-bold text-slate-500">
+                          {item.categoria}
+                        </td>
+                        <td className="px-8 py-5 text-right">
+                          <p className="text-sm font-black text-slate-900">-{formatCurrency(item.monto)}</p>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredData.length === 0 && (
+                    <tr>
+                      <td colSpan={activeBankTab === 'General' ? 5 : 4} className="px-8 py-10 text-center">
+                         <p className="text-slate-400 font-bold">No se encontraron movimientos.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default App;
